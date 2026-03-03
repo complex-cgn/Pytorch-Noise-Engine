@@ -8,6 +8,6 @@ noise_options:
 render_options:
   color_map: "gray"
   export_dpi: 150
-  show_plot: False
+  show_plot: True
   output_path: outputs/noise.png
   

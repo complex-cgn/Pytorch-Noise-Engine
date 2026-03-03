@@ -331,6 +331,7 @@ class WhiteNoise2D:
         return self._buffer.uniform_()
 
 
+@dataclass
 class WhiteNoise3D:
     """Simple white noise generator.
 

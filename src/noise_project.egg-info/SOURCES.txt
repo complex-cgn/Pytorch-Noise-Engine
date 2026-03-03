@@ -6,7 +6,8 @@ src/noise_engine/settings.py
 src/noise_engine/settings.yaml
 src/noise_engine/core/device.py
 src/noise_engine/core/noise.py
-src/noise_engine/utils/tensor.py
+src/noise_engine/utils/dynamic_3d_plotter.py
+src/noise_engine/utils/noise_utils.py
 src/noise_engine/utils/timer.py
 src/noise_project.egg-info/PKG-INFO
 src/noise_project.egg-info/SOURCES.txt

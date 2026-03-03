@@ -1,12 +1,11 @@
 import logging
 
 import click
-from rich.logging import RichHandler
-
 import noise_engine.core.noise as noise
 from noise_engine.settings import settings
-from noise_engine.utils import tensor
+from noise_engine.utils.dynamic_3d_plotter import Dynamic3DPlotter
 from noise_engine.utils.timer import Timer
+from rich.logging import RichHandler
 
 logging.basicConfig(
     level="DEBUG",
@@ -29,18 +28,16 @@ def main() -> None:
             shape=(settings.noise.height, settings.noise.width),
             seed=settings.noise.seed,
         )()"""
-        output = noise.WhiteNoise2D(
-            shape=(settings.noise.height, settings.noise.width),
+        output = noise.FractalNoise3D(
+            scale=settings.noise.scale,
+            octaves=settings.noise.num_octaves,
+            shape=(20, 20, 20),
+            seed=settings.noise.seed,
         )()
-        
+
     logging.info(f"Noise Generation Executed In {t.elapsed * 1000:.2f} Miliseconds!")
-    tensor.to_image(
-        output,
-        "Fractal Noise",
-        settings.render.output_path,
-        settings.render.color_map,
-        settings.render.export_dpi,
-        settings.render.show_plot,
+    Dynamic3DPlotter().plot(
+        output, mode="scatter", title="Fractal Noise 3D Scatter Plot"
     )
 
 
