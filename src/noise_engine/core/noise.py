@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass, field
+from attrs import define, field
 from typing import ClassVar, Optional
 from noise_engine.utils.noise_utils import fade, lerp
 
@@ -7,7 +7,7 @@ import torch
 from noise_engine.core.device import device
 
 
-@dataclass
+@define
 class Perlin1D:
     """Single-octave 1D Perlin noise."""
 
@@ -29,7 +29,7 @@ class Perlin1D:
         x0 = x_lin.long()
         xf = x_lin - x0
 
-        grid_w = int(self.scale) + 2
+        grid_w = self.scale.to(torch.int32) + 2
         angles = torch.empty(grid_w, device=device).uniform_(0, 2 * torch.pi)
 
         n0 = angles[x0].cos() * xf
@@ -37,7 +37,7 @@ class Perlin1D:
         return lerp(n0, n1, fade(xf))
 
 
-@dataclass
+@define
 class Perlin2D:
     """Single-octave 2D Perlin noise generator."""
 
@@ -66,14 +66,14 @@ class Perlin2D:
         y, x = torch.meshgrid(y_lin, x_lin, indexing="ij")
 
         # random gradient angles per grid cell
-        grid_h = int(self.scale) + 2
-        grid_w = int(self.scale) + 2
+        grid_h = self.scale.to(torch.int32) + 2
+        grid_w = self.scale.to(torch.int32) + 2
         rotation = torch.empty((grid_h, grid_w), device=device).uniform_(
             0, 2 * torch.pi
         )
 
         # grid indices and fractional offsets
-        x0, y0 = x.long(), y.long()
+        x0, y0 = x.to(torch.int32), y.to(torch.int32)
         x1, y1 = x0 + 1, y0 + 1
         xf, yf = x - x0, y - y0
 
@@ -92,7 +92,7 @@ class Perlin2D:
         return lerp(lerp(n00, n10, u), lerp(n01, n11, u), fade(yf))
 
 
-@dataclass
+@define
 class Perlin3D:
     """Single-octave 3D Perlin noise."""
 
@@ -126,7 +126,7 @@ class Perlin3D:
         gy = theta.sin() * phi.sin()
         gz = theta.cos()
 
-        x0, y0, z0 = x.long(), y.long(), z.long()
+        x0, y0, z0 = x.to(torch.int32), y.to(torch.int32), z.to(torch.int32)
         x1, y1, z1 = x0 + 1, y0 + 1, z0 + 1
         xf, yf, zf = x - x0, y - y0, z - z0
 
@@ -149,7 +149,7 @@ class Perlin3D:
         return lerp(x_interp0, x_interp1, w)
 
 
-@dataclass
+@define
 class FractalNoise1D:
     """Multi-octave 1D Perlin (fBm) noise generator."""
 
@@ -177,6 +177,7 @@ class FractalNoise1D:
         current_scale = self.scale
         current_amp = 1.0
 
+
         for octave in range(self.octaves):
             layer_seed = self.seed + octave if self.seed is not None else None
             layer = Perlin1D(scale=current_scale, shape=self.shape, seed=layer_seed)()
@@ -191,7 +192,7 @@ class FractalNoise1D:
         return total
 
 
-@dataclass
+@define
 class FractalNoise2D:
     """Multi-octave 2D Perlin (fBm) noise generator."""
 
@@ -233,7 +234,7 @@ class FractalNoise2D:
         return total
 
 
-@dataclass
+@define
 class FractalNoise3D:
     """Multi-octave 3D Perlin (fBm) noise generator."""
 
@@ -275,7 +276,7 @@ class FractalNoise3D:
         return total
 
 
-@dataclass
+@define
 class WhiteNoise1D:
     """Simple white noise generator.
 
@@ -303,7 +304,7 @@ class WhiteNoise1D:
         return self._buffer.uniform_()
 
 
-@dataclass
+@define
 class WhiteNoise2D:
     """Simple white noise generator.
 
@@ -331,7 +332,7 @@ class WhiteNoise2D:
         return self._buffer.uniform_()
 
 
-@dataclass
+@define
 class WhiteNoise3D:
     """Simple white noise generator.
 

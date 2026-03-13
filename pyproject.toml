@@ -1,31 +1,19 @@
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
 [project]
-name = "noise_project"
+name = "pytorch-noise-engine"
 version = "0.1.0"
-description = "Pytorch Noise Engine"
-authors = [
-    { name="CGN" }
-]
+description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.10"
-
+requires-python = ">=3.14"
 dependencies = [
-    "torch",
-    "matplotlib",
-    "numpy",
-    "pydantic",
-    "rich",
-    "pyyaml"
+    "attrs>=25.4.0",
+    "matplotlib>=3.10.8",
+    "numpy>=2.4.3",
+    "pydantic>=2.12.5",
+    "pyside6>=6.10.2",
+    "pyyaml>=6.0.3",
+    "rich>=14.3.3",
+    "torch>=2.10.0",
 ]
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.package-data]
-noise_engine = ["settings.yaml"]
 
 [project.scripts]
 noise = "noise_engine.__main__:main"
