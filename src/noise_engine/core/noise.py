@@ -291,10 +291,13 @@ class WhiteNoise1D:
     """Simple white noise generator for 1D data."""
 
     shape: tuple[int]
+    seed: Optional[int] = None
     _buffer: torch.Tensor = field(init=False, repr=False)
 
     def __post_init__(self):
         self._buffer = torch.empty(self.shape, device=get_device())
+        if self.seed is not None:
+            torch.manual_seed(self.seed)
 
     def __call__(self) -> torch.Tensor:
         logging.debug(f"Generating 1D White Noise: shape={self.shape}")
@@ -306,10 +309,13 @@ class WhiteNoise2D:
     """Simple white noise generator for 2D data."""
 
     shape: tuple[int, int]
+    seed: Optional[int] = None
     _buffer: torch.Tensor = field(init=False, repr=False)
 
     def __post_init__(self):
         self._buffer = torch.empty(self.shape, device=get_device())
+        if self.seed is not None:
+            torch.manual_seed(self.seed)
 
     def __call__(self) -> torch.Tensor:
         logging.debug(f"Generating 2D White Noise: shape={self.shape}")
@@ -321,19 +327,17 @@ class WhiteNoise3D:
     """Simple white noise generator for 3D data."""
 
     shape: tuple[int, int, int]
+    seed: Optional[int] = None
     _buffer: torch.Tensor = field(init=False, repr=False)
 
     def __post_init__(self):
         self._buffer = torch.empty(self.shape, device=get_device())
+        if self.seed is not None:
+            torch.manual_seed(self.seed)
 
     def __call__(self) -> torch.Tensor:
         logging.debug(f"Generating 3D White Noise: shape={self.shape}")
         return self._buffer.uniform_()
-
-
-# ============================================================================
-# SIMPLEX NOISE - YENİ ÖZELLİK (PERFORMANS OPTİMİZASYONU)
-# ============================================================================
 
 
 @define
@@ -511,59 +515,35 @@ class Simplex3D:
         jj = yi % 256
         kk = zi % 256
 
+        # Klasik 12 gradient: küpün kenar orta noktaları
+        GRAD3 = torch.tensor(
+            [
+                (1, 1, 0),
+                (-1, 1, 0),
+                (1, -1, 0),
+                (-1, -1, 0),
+                (1, 0, 1),
+                (-1, 0, 1),
+                (1, 0, -1),
+                (-1, 0, -1),
+                (0, 1, 1),
+                (0, -1, 1),
+                (0, 1, -1),
+                (0, -1, -1),
+            ],
+            dtype=torch.float32,
+        )
+
         def grad(ix, iy, iz, x_in, y_in, z_in):
-            """Compute 3D gradient contribution."""
-            p = (perm[(ix + perm[(iy + perm[iz]) % 256]) % 256] % 12).to(torch.float32)
+            # Permutation lookup — hangi gradient index'i seçilecek
+            p = perm[(ix + perm[(iy + perm[iz % 256]) % 256]) % 256] % 12
+            # p shape: (...) — her nokta için bir gradient index
 
-            # 12 gradient directions for 3D simplex noise
-            x = torch.where((p & 8) > 0, 1.0, -1.0)
-            y = torch.where((p & 4) > 0, 1.0, -1.0)
+            # Gradient vektörlerini lookup et
+            g = GRAD3[p]  # shape: (..., 3)
 
-            # Select gradient based on p value
-            grad_x = torch.zeros_like(x_in)
-            grad_y = torch.zeros_like(y_in)
-            grad_z = torch.zeros_like(z_in)
-
-            for i in range(12):
-                mask = p == i
-                if i == 0:
-                    grad_x = grad_x + mask * x_in
-                    grad_y = grad_y + mask * y_in
-                elif i == 1:
-                    grad_x = grad_x + mask * z_in
-                    grad_y = grad_y + mask * y_in
-                elif i == 2:
-                    grad_x = grad_x + mask * x_in
-                    grad_y = grad_y + mask * z_in
-                elif i == 3:
-                    grad_x = grad_x + mask * y_in
-                    grad_y = grad_y + mask * z_in
-                elif i == 4:
-                    grad_x = grad_x + mask * x_in
-                    grad_z = grad_z + mask * y_in
-                elif i == 5:
-                    grad_x = grad_x + mask * z_in
-                    grad_z = grad_z + mask * y_in
-                elif i == 6:
-                    grad_x = grad_x + mask * x_in
-                    grad_z = grad_z + mask * z_in
-                elif i == 7:
-                    grad_x = grad_x + mask * y_in
-                    grad_z = grad_z + mask * z_in
-                elif i == 8:
-                    grad_y = grad_y + mask * x_in
-                    grad_z = grad_z + mask * y_in
-                elif i == 9:
-                    grad_y = grad_y + mask * z_in
-                    grad_z = grad_z + mask * y_in
-                elif i == 10:
-                    grad_y = grad_y + mask * x_in
-                    grad_z = grad_z + mask * z_in
-                elif i == 11:
-                    grad_y = grad_y + mask * y_in
-                    grad_z = grad_z + mask * z_in
-
-            return grad_x * x_in + grad_y * y_in + grad_z * z_in
+            # Dot product: g · (x_in, y_in, z_in)
+            return g[..., 0] * x_in + g[..., 1] * y_in + g[..., 2] * z_in
 
         # Calculate contributions from all 8 corners of simplex
         n0 = grad(ii, jj, kk, x0, y0, z0)
@@ -635,38 +615,41 @@ def noise_factory(
     type_lower = noise_type.lower()
 
     # Single octave noise
+    _SINGLE_OCTAVE = {
+        ("perlin", 1): lambda scale, shape, seed, **_: Perlin1D(scale, shape, seed),
+        ("perlin", 2): lambda scale, shape, seed, **_: Perlin2D(scale, shape, seed),
+        ("perlin", 3): lambda scale, shape, seed, **_: Perlin3D(scale, shape, seed),
+        ("simplex", 2): lambda scale, shape, seed, **_: Simplex2D(scale, shape, seed),
+        ("simplex", 3): lambda scale, shape, seed, **_: Simplex3D(scale, shape, seed),
+        ("white", 1): lambda shape, seed, **_: WhiteNoise1D(shape, seed),
+        ("white", 2): lambda shape, seed, **_: WhiteNoise2D(shape, seed),
+        ("white", 3): lambda shape, seed, **_: WhiteNoise3D(shape, seed),
+    }
+
+    # Fractal noise (fBm)
+    _FRACTAL = {
+        ("perlin", 1): lambda scale, octaves, shape, seed, **kw: FractalNoise1D(
+            scale, octaves, shape, seed=seed, **kw
+        ),
+        ("perlin", 2): lambda scale, octaves, shape, seed, **kw: FractalNoise2D(
+            scale, octaves, shape, seed=seed, **kw
+        ),
+        ("perlin", 3): lambda scale, octaves, shape, seed, **kw: FractalNoise3D(
+            scale, octaves, shape, seed=seed, **kw
+        ),
+    }
+
+    type_lower = noise_type.lower()
+    key = (type_lower, dimensions)
+
     if octaves == 1:
-        if type_lower == "perlin":
-            if dimensions == 1:
-                return Perlin1D(scale, shape, seed)
-            elif dimensions == 2:
-                return Perlin2D(scale, shape, seed)
-            elif dimensions == 3:
-                return Perlin3D(scale, shape, seed)
-
-        elif type_lower == "simplex":
-            if dimensions == 2:
-                return Simplex2D(scale, shape, seed)
-            elif dimensions == 3:
-                return Simplex3D(scale, shape, seed)
-
-        elif type_lower == "white":
-            if dimensions == 1:
-                return WhiteNoise1D(shape)
-            elif dimensions == 2:
-                return WhiteNoise2D(shape)
-            elif dimensions == 3:
-                return WhiteNoise3D(shape)
-
-    # Multi-octave fractal noise
+        factory = _SINGLE_OCTAVE.get(key)
+        if factory:
+            return factory(scale, shape, seed)
     else:
-        if type_lower == "perlin":
-            if dimensions == 1:
-                return FractalNoise1D(scale, octaves, shape, seed=seed, **kwargs)
-            elif dimensions == 2:
-                return FractalNoise2D(scale, octaves, shape, seed=seed, **kwargs)
-            elif dimensions == 3:
-                return FractalNoise3D(scale, octaves, shape, seed=seed, **kwargs)
+        factory = _FRACTAL.get(key)
+        if factory:
+            return factory(scale, octaves, shape, seed, **kwargs)
 
     raise ValueError(
         f"Unsupported noise_type='{noise_type}' with dimensions={dimensions}"
