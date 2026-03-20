@@ -1,9 +1,12 @@
 import logging
-from attrs import define, field
-from typing import Optional, Tuple, Callable, NamedTuple
+from typing import Optional, Tuple
+
 import torch
+from attrs import define
+
 from noise_engine.core.device import get_device
 from noise_engine.utils.noise_utils import fade, lerp
+from concurrent.futures import ThreadPoolExecutor
 
 
 # ============================================================================
@@ -11,35 +14,16 @@ from noise_engine.utils.noise_utils import fade, lerp
 # ============================================================================
 
 
+@define
 class _PerlinBase:
     """Base class for Perlin noise with shared functionality."""
 
-    def __init__(
-        self, scale: float, shape: Tuple[int, ...], seed: Optional[int] = None
-    ):
-        self.scale = float(scale)
-        self.shape = tuple(shape)
-        self.seed = seed
-        self.dim = len(shape)
-
-        # Validate inputs
-        if self.dim not in (1, 2, 3):
-            raise ValueError(f"Shape must be 1D, 2D, or 3D. Got {self.dim}D")
-        if self.scale <= 0:
-            raise ValueError("Scale must be positive")
-
-    def _create_permutation_table(self, seed: Optional[int]) -> torch.Tensor:
-        """Create deterministic permutation table from seed."""
-        if seed is not None:
-            generator = torch.Generator(device="cpu").manual_seed(seed)
-            perm = torch.randperm(256, generator=generator).to(torch.int32)
-        else:
-            perm = torch.randperm(256).to(torch.int32)
-
-        # Extend to 512 for wrapping (avoids modulo operation)
-        return torch.cat([perm, perm])
+    scale: float
+    shape: Tuple[int, ...]
+    seed: Optional[int] = None
 
 
+@define
 class Perlin1D(_PerlinBase):
     """Single-octave 1D Perlin noise - optimized implementation."""
 
@@ -56,7 +40,6 @@ class Perlin1D(_PerlinBase):
         xf = x_lin - x0
 
         # Gradient angles (using permutation table for determinism)
-        perm_table = self._create_permutation_table(self.seed)
         grid_size = int(self.scale) + 2
         angles = torch.empty(grid_size, device=device).uniform_(0, 2 * torch.pi)
 

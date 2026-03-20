@@ -44,8 +44,37 @@ class Settings(BaseModel):
             raise
 
 
-try:
-    settings = Settings.load_from_yaml(CONFIG_PATH)
-    print(f"Settings Loaded: {settings.render.output_path}")
-except Exception as e:
-    print(f"The system could not be started: {e}")
+# Lazy singleton instance
+_settings_instance: Settings | None = None
+
+
+def get_settings(path: Path = CONFIG_PATH) -> Settings:
+    """
+    Get settings instance (cached after first call).
+
+    Args:
+        path: Configuration file path. Defaults to bundled settings.yaml.
+
+    Returns:
+        Configured Settings instance.
+
+    Raises:
+        FileNotFoundError: If configuration file doesn't exist.
+        ValidationError: If configuration is invalid.
+    """
+    global _settings_instance
+
+    # Return cached instance if already loaded
+    if _settings_instance is not None:
+        return _settings_instance
+
+    # Load new instance
+    _settings_instance = Settings.load_from_yaml(path)
+    logging.debug(f"Settings loaded from {path}")
+    return _settings_instance
+
+
+def reset_settings() -> None:
+    """Reset cached settings (useful for testing)."""
+    global _settings_instance
+    _settings_instance = None
